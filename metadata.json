@@ -1,0 +1,5 @@
+{
+  "name": "MemeGen Pro - 表情包制作器",
+  "description": "使用 Gemini 3 Pro (Nano Banana Pro) 将您的照片生成定制的 Q 版 LINE 风格表情包。",
+  "requestFramePermissions": []
+}
