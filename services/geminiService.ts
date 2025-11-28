@@ -30,9 +30,9 @@ const extractImageFromContent = (content: string): string => {
   // 2. Check if the content itself looks like a URL
   const trimmed = content.trim();
   if (trimmed.startsWith("http") || trimmed.startsWith("data:image")) {
-      return trimmed;
+    return trimmed;
   }
-  
+
   // 3. Fallback
   throw new Error("未在响应中检测到生成的图片。请确保模型返回了图片链接或 Base64 数据。");
 };
@@ -48,105 +48,39 @@ Language: All text must be in Handwritten Simplified Chinese.
 Do not just copy the original image. Create expressive, stylized stickers.
 `;
 
-// --- OpenAI Format Implementation ---
+// --- Backend API Implementation ---
 export const generateStickerPackOpenAI = async (
   imageFile: File,
-  config: ApiConfig
+  config: { password: string } // Only password needed now
 ): Promise<string> => {
-  
+
   const base64Image = await fileToGenerativePart(imageFile);
   const mimeType = imageFile.type;
 
-  // Intelligent URL Normalization
-  let fetchUrl = config.baseUrl.trim().replace(/\/+$/, ""); // Remove trailing slashes
-  
-  // If user didn't provide the full path, append it smartly
-  if (!fetchUrl.endsWith("/chat/completions")) {
-      if (fetchUrl.endsWith("/v1")) {
-          fetchUrl += "/chat/completions";
-      } else {
-          fetchUrl += "/v1/chat/completions";
-      }
-  }
-
-  const payload = {
-    model: config.model,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: DEFAULT_PROMPT },
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:${mimeType};base64,${base64Image}`
-            }
-          }
-        ]
-      }
-    ],
-    stream: true 
-  };
-
   try {
-    const response = await fetch(fetchUrl, {
+    const response = await fetch("/api/generate", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${config.apiKey}`
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        password: config.password,
+        imageBase64: base64Image,
+        mimeType: mimeType
+      })
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => "Unknown error");
-      throw new Error(`API 请求失败 (${response.status}): ${errorText}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `请求失败 (${response.status})`);
     }
 
-    if (!response.body) throw new Error("API 响应没有内容体");
-
-    // Case A: JSON Fallback
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-       const json = await response.json();
-       const content = json.choices?.[0]?.message?.content || "";
-       return extractImageFromContent(content);
-    }
-
-    // Case B: SSE Stream Parsing
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let fullContent = "";
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
-        if (trimmedLine === "data: [DONE]") continue;
-
-        try {
-          const jsonStr = trimmedLine.substring(6); 
-          const json = JSON.parse(jsonStr);
-          const deltaContent = json.choices?.[0]?.delta?.content;
-          if (deltaContent) fullContent += deltaContent;
-        } catch (e) {
-          // ignore parse errors for partial chunks
-        }
-      }
-    }
-
-    return extractImageFromContent(fullContent);
+    const json = await response.json();
+    const content = json.choices?.[0]?.message?.content || "";
+    return extractImageFromContent(content);
 
   } catch (error: any) {
-    console.error("OpenAI Generation Error:", error);
+    console.error("Generation Error:", error);
     throw error;
   }
 };
