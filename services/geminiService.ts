@@ -75,9 +75,39 @@ export const generateStickerPackOpenAI = async (
       throw new Error(errorData.error || `请求失败 (${response.status})`);
     }
 
-    const json = await response.json();
-    const content = json.choices?.[0]?.message?.content || "";
-    return extractImageFromContent(content);
+    if (!response.body) throw new Error("API 响应没有内容体");
+
+    // SSE Stream Parsing
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let fullContent = "";
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine || !trimmedLine.startsWith("data: ")) continue;
+        if (trimmedLine === "data: [DONE]") continue;
+
+        try {
+          const jsonStr = trimmedLine.substring(6);
+          const json = JSON.parse(jsonStr);
+          const deltaContent = json.choices?.[0]?.delta?.content;
+          if (deltaContent) fullContent += deltaContent;
+        } catch (e) {
+          // ignore parse errors for partial chunks
+        }
+      }
+    }
+
+    return extractImageFromContent(fullContent);
 
   } catch (error: any) {
     console.error("Generation Error:", error);

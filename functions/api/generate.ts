@@ -14,6 +14,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const { password, imageBase64, mimeType } = body;
 
         // 2. Security Check: Validate Password
+        // console.log(`[Auth Debug] Received: '${password}', Expected: '${env.ACCESS_PASSWORD}'`);
+
         if (!env.ACCESS_PASSWORD) {
             return new Response(JSON.stringify({ error: "Server misconfigured: ACCESS_PASSWORD not set" }), { status: 500 });
         }
@@ -51,6 +53,10 @@ Language: All text must be in Handwritten Simplified Chinese.
 Do not just copy the original image. Create expressive, stylized stickers.
 `;
 
+        // Log the URL for debugging
+        // console.log(`[Proxy] Requesting Upstream URL: ${fetchUrl}`);
+        // console.log(`[Proxy] Model: ${model}`);
+
         const payload = {
             model: model,
             messages: [
@@ -67,7 +73,7 @@ Do not just copy the original image. Create expressive, stylized stickers.
                     ]
                 }
             ],
-            stream: false // Simplified for backend proxy, can be true if we implement streaming response
+            stream: true
         };
 
         // 4. Call Gemini API
@@ -85,9 +91,13 @@ Do not just copy the original image. Create expressive, stylized stickers.
             return new Response(JSON.stringify({ error: `Upstream API Error: ${response.status}`, details: errorText }), { status: response.status });
         }
 
-        const data = await response.json();
-        return new Response(JSON.stringify(data), {
-            headers: { "Content-Type": "application/json" }
+        // Pass-through the stream
+        return new Response(response.body, {
+            headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive"
+            }
         });
 
     } catch (err: any) {

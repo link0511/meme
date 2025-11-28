@@ -7,24 +7,15 @@ import { StickerGenerationState } from './types';
 
 const App: React.FC = () => {
   // --- Auth State ---
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // Client-side auth removed. Password is sent to backend for verification.
   const [passwordInput, setPasswordInput] = useState("");
-  const [authError, setAuthError] = useState("");
-
-  // Read Plain Text Password from Environment Variable
-  // Note: This exposes the password in the client-side bundle. 
-  const TARGET_PASSWORD = process.env.ACCESS_PASSWORD || "";
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   // --- App Logic State ---
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [isZipping, setIsZipping] = useState<boolean>(false);
-
-  // Custom Provider Config - Defaults from Env Vars
-  // const [customBaseUrl, setCustomBaseUrl] = useState(process.env.API_BASE_URL || ""); // Moved to backend
-  // const [customApiKey, setCustomApiKey] = useState(process.env.API_KEY || ""); // Moved to backend
-  // const [customModel, setCustomModel] = useState(process.env.MODEL_ID || ""); // Moved to backend
 
   // Crop Config
   const [cropRows, setCropRows] = useState(4);
@@ -37,7 +28,6 @@ const App: React.FC = () => {
   });
 
   // --- Auth Effects & Handlers ---
-
   useEffect(() => {
     const isAuth = sessionStorage.getItem('is_authenticated');
     if (isAuth === 'true') {
@@ -47,20 +37,10 @@ const App: React.FC = () => {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthError("");
-
-    if (!TARGET_PASSWORD) {
-      setAuthError("系统配置错误：未设置访问密码 (Env: ACCESS_PASSWORD)");
-      return;
-    }
-
-    // Direct String Comparison
-    // Ensure no accidental spaces
-    if (passwordInput === TARGET_PASSWORD) {
+    // Simple client-side gate. Real validation happens at API call.
+    if (passwordInput.trim()) {
       setIsAuthenticated(true);
       sessionStorage.setItem('is_authenticated', 'true');
-    } else {
-      setAuthError("密码错误");
     }
   };
 
@@ -176,9 +156,7 @@ const App: React.FC = () => {
                 spellCheck="false"
               />
             </div>
-            {authError && (
-              <p className="text-red-400 text-sm text-center animate-pulse">{authError}</p>
-            )}
+            {/* Client-side error removed */}
             <Button type="submit" fullWidth>
               进入系统
             </Button>
